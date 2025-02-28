@@ -30,7 +30,7 @@ func (s *serviceImpl) CreateCoin(ctx context.Context, coinName string, price flo
 	return entities.NewCoin(coinName, price)
 }
 
-func (s *serviceImpl) GertCoinByName(ctx context.Context, coinName string) (*entities.Coin, error) {
+func (s *serviceImpl) GetCoinByName(ctx context.Context, coinName string) (*entities.Coin, error) {
 	return nil, errors.New("Coin not found")
 }
 
