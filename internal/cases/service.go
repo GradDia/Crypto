@@ -9,31 +9,70 @@ import (
 )
 
 type Service interface {
-	CreateCoin(ctx context.Context, coinName string, price float64) (*entities.Coin, error)
-	GetCoinByName(ctx context.Context, coinName string) (*entities.Coin, error)
-	UpdateCoinPrice(ctx context.Context, coinName string, newPrice float64) (*entities.Coin, error)
+	GetLastRates(ctx context.Context, titles []string) ([]entities.Coin, error)
+	GetMaxRates(ctx context.Context, titles []string) ([]entities.Coin, error)
+	GetMinRates(ctx context.Context, titles []string) ([]entities.Coin, error)
+	GetAvgRates(ctx context.Context, titles []string) ([]entities.Coin, error)
+	ActualizeRates(ctx context.Context, opts ...Option) error
+}
+type ServiceImpl struct {
+	storage        Storage
+	cryptoProvider CryptoProvider
 }
 
-func NewService() Service {
-	return &serviceImpl{}
-}
-
-type serviceImpl struct{}
-
-func (s *serviceImpl) CreateCoin(ctx context.Context, coinName string, price float64) (*entities.Coin, error) {
-	if coinName == "" {
-		return nil, errors.Wrap(ErrInvalidData, "The name of the coin cannot be empty")
+func NewService(storage Storage, cryptoProvider CryptoProvider) Service {
+	return &ServiceImpl{
+		storage:        storage,
+		cryptoProvider: cryptoProvider,
 	}
-	if price <= 0 {
-		return nil, errors.Wrap(ErrInvalidData, "The price must be more than 0")
+}
+
+func (s *ServiceImpl) GetLastRates(ctx context.Context, titles []string) ([]entities.Coin, error) {
+	if len(titles) == 0 {
+		return nil, entities.ErrInvalidParam
 	}
-	return entities.NewCoin(coinName, price)
+	return s.storage.GetActualCoins(ctx, titles)
 }
 
-func (s *serviceImpl) GetCoinByName(ctx context.Context, coinName string) (*entities.Coin, error) {
-	return nil, errors.New("Coin not found")
+func (s *ServiceImpl) GetMaxRates(ctx context.Context, titles []string) ([]entities.Coin, error) {
+	if len(titles) == 0 {
+		return nil, entities.ErrInvalidParam
+	}
+	return s.storage.GetAggregateCoins(ctx, titles)
 }
 
-func (s *serviceImpl) UpdateCoinPrice(ctx context.Context, coinName string, newPrice float64) (*entities.Coin, error) {
-	return nil, errors.New("Coin not found")
+func (s *ServiceImpl) GetMinRates(ctx context.Context, titles []string) ([]entities.Coin, error) {
+	if len(titles) == 0 {
+		return nil, entities.ErrInvalidParam
+	}
+	return s.storage.GetAggregateCoins(ctx, titles)
+}
+
+func (s *ServiceImpl) GetAvgRates(ctx context.Context, titles []string) ([]entities.Coin, error) {
+	if len(titles) == 0 {
+		return nil, entities.ErrInvalidParam
+	}
+	return s.storage.GetAggregateCoins(ctx, titles)
+}
+
+func (s *ServiceImpl) ActualizeRates(ctx context.Context, opts ...Option) error {
+	config := &Options{}
+	for _, opt := range opts {
+		opt(config)
+	}
+	titles := config.Titles
+	actualRates, err := s.cryptoProvider.GetActualRates(ctx, titles)
+	if err != nil {
+		return errors.Wrap(err, "failed to get actual rates from crypto provider")
+	}
+	for _, coin := range actualRates {
+		if coin.CoinName == "" || coin.Price <= 0 {
+			return errors.New("invalid coin data")
+		}
+		err := s.storage.Store(ctx, []entities.Coin{coin})
+		if err != nil {
+			return errors.Wrap(err, "failed to store update coin rate")
+		}
+	}
+	return nil
 }

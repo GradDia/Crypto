@@ -2,118 +2,72 @@ package cases_test
 
 import (
 	"context"
-	"strings"
+	"errors"
 	"testing"
 
-	"github.com/pkg/errors"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 
 	"Cryptoproject/internal/cases"
+	"Cryptoproject/internal/cases/mock_cases"
+	"Cryptoproject/internal/entities"
 )
 
-func Test_CreateCoin_Succes(t *testing.T) {
+func Test_GetLastRates_Success(t *testing.T) {
 	t.Parallel()
 
-	service := cases.NewService()
+	// Создаем контроллер для моков
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	coinName := "BTC"
-	price := 2700.0
-	coin, err := service.CreateCoin(context.Background(), coinName, price)
+	// Создаем мок для интерфейса Storage
+	mockStorage := mock_cases.NewMockStorage(ctrl)
 
-	if err != nil {
-		t.Fatalf("Expected no error, but got: %v", err)
+	// Определяем поведение мока
+	titles := []string{"BTC", "ETH"}
+	expectedCoins := []entities.Coin{
+		{CoinName: "BTC", Price: 28000},
+		{CoinName: "ETH", Price: 1500},
 	}
-	if coin == nil {
-		t.Fatal("Expected coin to be created, but got nil")
-	}
-	if coin.CoinName != coinName {
-		t.Errorf("Expected coin name to be '%s' but got: %s", coinName, coin.CoinName)
-	}
-	if coin.Price != price {
-		t.Errorf("Expected price to be %f, but got: %f", price, coin.Price)
-	}
-}
+	mockStorage.EXPECT().
+		GetActualCoins(gomock.Any(), titles).
+		Return(expectedCoins, nil)
 
-func contains(s, substr string) bool {
-	return strings.Contains(s, substr)
-}
+	// Создаем сервис с моком хранилища
+	service := cases.NewService(mockStorage, nil)
 
-func Test_CreateCoin_ValidateError(t *testing.T) {
-	t.Parallel()
-
-	// Создаем сервис
-	service := cases.NewService()
-
-	// Попытка создать монету с пустым именем
-	coinName := ""
-	price := 1.0
-	coin, err := service.CreateCoin(context.Background(), coinName, price)
+	// Вызываем метод GetLastRates
+	coins, err := service.GetLastRates(context.Background(), titles)
 
 	// Проверяем результат
-	if !errors.Is(err, cases.ErrInvalidData) {
-		t.Errorf("Expected error '%v', but got: %v", cases.ErrInvalidData, err)
-	}
-	if coin != nil {
-		t.Fatalf("Expected coin to be nil, but got: %+v", coin)
-	}
-	if !contains(err.Error(), "The name of the coin cannot be empty") {
-		t.Errorf("Expected error message to contain 'The name of the coin cannot be empty', but got: %v", err)
-	}
-
-	// Попытка создать монету с нулевой ценой
-	coinName = "BTC"
-	price = 0.0
-	coin, err = service.CreateCoin(context.Background(), coinName, price)
-
-	// Проверяем результат
-	if !errors.Is(err, cases.ErrInvalidData) {
-		t.Errorf("Expected error '%v', but got: %v", cases.ErrInvalidData, err)
-	}
-	if coin != nil {
-		t.Fatalf("Expected coin to be nil, but got: %+v", coin)
-	}
-	if !contains(err.Error(), "The price must be more than 0") {
-		t.Errorf("Expected error message to contain 'The price must be more than 0', but got: %v", err)
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, expectedCoins, coins)
 }
 
-func Test_GetCoinByName_NotFound(t *testing.T) {
+func Test_GetLastRates_Error(t *testing.T) {
 	t.Parallel()
 
-	service := cases.NewService()
+	// Создаем контроллер для моков
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	coinName := "BTC"
-	coin, err := service.GetCoinByName(context.Background(), coinName)
+	// Создаем мок для интерфейса Storage
+	mockStorage := mock_cases.NewMockStorage(ctrl)
 
-	if err == nil {
-		t.Fatalf("Expected an error, but got nil")
-	}
-	if coin != nil {
-		t.Fatalf("Expected coin to be nil, but got: %+v", coin)
-	}
-	if err.Error() != "Coin not found" {
-		t.Errorf("Expected error 'Coin not found', But got: %v", err)
-	}
-}
+	// Определяем поведение мока
+	titles := []string{"BTC", "ETH"}
+	mockStorage.EXPECT().
+		GetActualCoins(gomock.Any(), titles).
+		Return(nil, errors.New("storage error"))
 
-func Test_UpdateCoinPrice_NotFound(t *testing.T) {
-	t.Parallel()
+	// Создаем сервис с моком хранилища
+	service := cases.NewService(mockStorage, nil)
 
-	// Создаем сервис
-	service := cases.NewService()
-
-	// Вызываем метод UpdateCoinPrice
-	coinName := "BTC"
-	newPrice := 28000.0
-	coin, err := service.UpdateCoinPrice(context.Background(), coinName, newPrice)
+	// Вызываем метод GetLastRates
+	coins, err := service.GetLastRates(context.Background(), titles)
 
 	// Проверяем результат
-	if err == nil {
-		t.Fatal("Expected an error, but got nil")
-	}
-	if coin != nil {
-		t.Fatalf("Expected coin to be nil, but got: %+v", coin)
-	}
-	if err.Error() != "Coin not found" {
-		t.Errorf("Expected error 'Coin not found', but got: %v", err)
-	}
+	assert.Error(t, err)
+	assert.Nil(t, coins)
+	assert.Contains(t, err.Error(), "storage error")
 }

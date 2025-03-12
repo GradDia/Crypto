@@ -7,8 +7,8 @@ import (
 )
 
 type Coin struct {
-	CoinName  string  // Название валюты
-	Price     float64 // Текущая цена
+	CoinName  string
+	Price     float64
 	CreatedAt time.Time
 }
 
