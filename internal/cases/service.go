@@ -33,122 +33,51 @@ func (s *Service) GetLastRates(ctx context.Context, titles []string) ([]entities
 		return nil, errors.Wrap(entities.ErrInvalidParam, "titles list is empty")
 	}
 
-	//	err := s.checkExistingTitles(ctx, titles)
-	//	if err != nil {
-	//		return nil, errors.Wrap(entities.ErrInvalidParam, "failed to check existing titles")
-	//	}
+	if err := s.checkExistingTitles(ctx, titles); err != nil {
+		return nil, errors.Wrap(err, "failed to check existing titles")
+	}
 
 	coins, err := s.storage.GetActualCoins(ctx, titles)
 	if err != nil {
-		return nil, errors.Wrap(entities.ErrInvalidParam, "failed to get actual coins from storage")
+		return nil, errors.Wrap(err, "failed to get actual coins from storage")
 	}
 	return coins, nil
 }
 
-func (s *Service) GetMaxRates(ctx context.Context, titles []string) ([]entities.Coin, error) {
+func (s *Service) GetRatesWithAgg(ctx context.Context, titles []string, aggFuncTitle string) ([]entities.Coin, error) {
 	if len(titles) == 0 {
 		return nil, errors.Wrap(entities.ErrInvalidParam, "titles list is empty")
 	}
 
-	//err := s.checkExistingTitles(ctx, titles)
-	//if err != nil {
-	//	return nil, errors.Wrap(entities.ErrInvalidParam, "failed to check existing titles")
-	//}
+	if err := s.checkExistingTitles(ctx, titles); err != nil {
+		return nil, errors.Wrap(err, "failed to check existing titles")
+	}
 
-	coins, err := s.storage.GetAggregateCoins(ctx, titles)
+	coins, err := s.storage.GetAggregateCoins(ctx, titles, aggFuncTitle)
 	if err != nil {
-		return nil, errors.Wrap(entities.ErrInvalidParam, "failed to get aggregate coins from storage")
+		return nil, errors.Wrap(err, "failed to get aggregate coins from storage")
 	}
-
-	var maxRates []entities.Coin
-	for _, coin := range coins {
-		if coin.Price > 0 {
-			maxRates = append(maxRates, entities.Coin{
-				CoinName: coin.CoinName,
-				Price:    coin.Price,
-			})
-		}
-	}
-	return maxRates, nil
+	return coins, nil
 }
 
-func (s *Service) GetMinRates(ctx context.Context, titles []string) ([]entities.Coin, error) {
-	if len(titles) == 0 {
-		return nil, errors.Wrap(entities.ErrInvalidParam, "titles list is empty")
-	}
-
-	//err := s.checkExistingTitles(ctx, titles)
-	//if err != nil {
-	//	return nil, errors.Wrap(entities.ErrInvalidParam, "failed to check existing titles")
-	//}
-
-	coins, err := s.storage.GetAggregateCoins(ctx, titles)
+func (s *Service) ActualizeRates(ctx context.Context) error {
+	allTitles, err := s.storage.GetCoinsList(ctx)
 	if err != nil {
-		return nil, errors.Wrap(entities.ErrInvalidParam, "failed to get aggregate coins from storage")
+		return errors.Wrap(err, "actualizeRates get coins list")
 	}
 
-	var minRates []entities.Coin
-	for _, coin := range coins {
-		if coin.Price > 0 {
-			minRates = append(minRates, entities.Coin{
-				CoinName: coin.CoinName,
-				Price:    coin.Price,
-			})
-		}
-	}
-	return minRates, nil
-}
-
-func (s *Service) GetAvgRates(ctx context.Context, titles []string) ([]entities.Coin, error) {
-	if len(titles) == 0 {
-		return nil, errors.Wrap(entities.ErrInvalidParam, "titles list is empty")
-	}
-
-	//err := s.checkExistingTitles(ctx, titles)
-	//if err != nil {
-	//	return nil, errors.Wrap(entities.ErrInvalidParam, "failed to check existing titles")
-	//}
-
-	coins, err := s.storage.GetAggregateCoins(ctx, titles)
+	updatedCoins, err := s.cryptoProvider.GetActualRates(ctx, allTitles)
 	if err != nil {
-		return nil, errors.Wrap(entities.ErrInvalidParam, "failed to get aggregate coins from storage")
+		return errors.Wrap(err, "actualizeRates get actual rates")
 	}
 
-	var avgRates []entities.Coin
-	for _, coin := range coins {
-		if coin.Price > 0 {
-			avgRates = append(avgRates, entities.Coin{
-				CoinName: coin.CoinName,
-				Price:    coin.Price,
-			})
-		}
-	}
-	return avgRates, nil
-}
-
-func (s *Service) ActualizeRates(ctx context.Context, opts ...Option) error {
-	config := &Options{}
-	for _, opt := range opts {
-		opt(config)
-	}
-	titles := config.Titles
-	actualRates, err := s.cryptoProvider.GetActualRates(ctx, titles)
-	if err != nil {
-		return errors.Wrap(err, "failed to get actual rates from crypto provider")
-	}
-	for _, coin := range actualRates {
-		if coin.CoinName == "" || coin.Price <= 0 {
-			return errors.New("invalid coin data")
-		}
-		err := s.storage.Store(ctx, []entities.Coin{coin})
-		if err != nil {
-			return errors.Wrap(err, "failed to store update coin rate")
-		}
+	if err = s.storage.Store(ctx, updatedCoins); err != nil {
+		return errors.Wrap(err, "actualizeRates store")
 	}
 	return nil
 }
 
-func (s *Service) CheckExistingTitles(ctx context.Context, requestTitles []string) error {
+func (s *Service) checkExistingTitles(ctx context.Context, requestTitles []string) error {
 	existingTitles, err := s.storage.GetCoinsList(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to get coins list from storage")
@@ -164,22 +93,19 @@ func (s *Service) CheckExistingTitles(ctx context.Context, requestTitles []strin
 		return errors.Wrap(err, "failed to get actual rates for missing titles")
 	}
 
-	for _, coin := range newCoins {
-		err := s.storage.Store(ctx, []entities.Coin{coin})
-		if err != nil {
-			return errors.Wrap(err, "failed to store new coins in storage")
-		}
+	if err = s.storage.Store(ctx, newCoins); err != nil {
+		return errors.Wrap(err, "failed to store new coins in storage")
 	}
 	return nil
 }
 
 func findMissingTitles(requestTitles, existingTitles []string) []string {
-	existingSet := make(map[string]struct{})
+	existingSet := make(map[string]struct{}, len(existingTitles))
 	for _, title := range existingTitles {
 		existingSet[title] = struct{}{}
 	}
 
-	var missingTitles []string
+	missingTitles := make([]string, 0, len(requestTitles))
 	for _, title := range requestTitles {
 		if _, exists := existingSet[title]; !exists {
 			missingTitles = append(missingTitles, title)
