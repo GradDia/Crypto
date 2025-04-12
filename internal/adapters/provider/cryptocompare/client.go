@@ -22,7 +22,7 @@ const (
 
 type Client struct {
 	apiKey     string
-	httpClient *http.Client
+	HttpClient *http.Client
 	priceIn    string
 }
 
@@ -47,7 +47,7 @@ func NewClient(apiKey string, opts ...ClientOption) (*Client, error) {
 
 	client := &Client{
 		apiKey:     apiKey,
-		httpClient: &http.Client{},
+		HttpClient: &http.Client{},
 		priceIn:    defaultPriceIn,
 	}
 
@@ -72,7 +72,7 @@ func (c *Client) GetActualRates(ctx context.Context, titles []string) ([]entitie
 	req.URL.RawQuery = q.Encode()
 	req.Header.Set("Authorization", fmt.Sprintf("Apikey %s", c.apiKey))
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.HttpClient.Do(req)
 	if err != nil {
 		return nil, errors.Wrapf(entities.ErrInternal, "execute request failure: %v", err)
 	}
