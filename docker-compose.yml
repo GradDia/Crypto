@@ -1,22 +1,15 @@
+version: '3.8'
+
 services:
   postgres:
-    image: postgres:15-alpine
-    container_name: crypto_postgres
+    image: postgres:16
+    container_name: data_base
     environment:
-      POSTGRES_USER: crypto_user
-      POSTGRES_PASSWORD: crypto_pass
-      POSTGRES_DB: cryptodb
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: coins
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./internal/adapters/storage/postgres/migrations:/docker-entrypoint-initdb.d
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U crypto_user -d cryptodb"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    restart: unless-stopped
-
-volumes:
-  postgres_data:
+      - ./pkg/migrations/postgres:/docker-entrypoint-initdb.d
+    restart: always
