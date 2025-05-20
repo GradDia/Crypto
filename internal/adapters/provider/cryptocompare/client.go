@@ -101,5 +101,3 @@ func (c *Client) GetActualRates(ctx context.Context, titles []string) ([]entitie
 
 	return coins, nil
 }
-
-//Переписать тест

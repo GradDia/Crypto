@@ -1,11 +1,12 @@
 package postgres
 
 import (
-	"Cryptoproject/internal/cases"
 	"context"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 
+	"Cryptoproject/internal/cases"
 	"Cryptoproject/internal/entities"
 )
 
@@ -30,12 +31,12 @@ func NewStorage(connectionString string) (*Storage, error) {
 }
 
 func (s *Storage) Store(ctx context.Context, coins []entities.Coin) error {
-	names := make([]string, len(coins))
-	prices := make([]float64, len(coins))
+	names := make([]string, 0, len(coins))
+	prices := make([]float64, 0, len(coins))
 
-	for i, coin := range coins {
-		names[i] = coin.CoinName
-		prices[i] = coin.Price
+	for _, coin := range coins {
+		names = append(names, coin.CoinName)
+		prices = append(prices, coin.Price)
 	}
 
 	_, err := s.db.Exec(ctx, `
@@ -138,7 +139,7 @@ func (s *Storage) GetAggregateCoins(ctx context.Context, titles []string, aggFun
     `, titles)
 
 	if err != nil {
-		return nil, errors.Wrap(entities.ErrInternal, "aggregate query failed")
+		return nil, errors.Wrapf(entities.ErrInternal, "aggregate query failed, err: %v", err)
 	}
 	defer rows.Close()
 

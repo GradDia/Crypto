@@ -1,6 +1,6 @@
 BEGIN;
 
-CREATE TABLE coins_new (
+CREATE TABLE coins_new if NOT EXISTS(
     coin_name VARCHAR(50) NOT NULL,
     price DECIMAL(15, 2) NOT NULL CHECK (price > 0),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -9,7 +9,7 @@ CREATE TABLE coins_new (
 INSERT INTO coins_new (coin_name, price, created_at)
 SELECT coin_name, price, created_at FROM coins;
 
-DROP TABLE coins;
+DROP TABLE IF EXISTS coins;
 
 ALTER TABLE coins_new RENAME TO coins;
 
