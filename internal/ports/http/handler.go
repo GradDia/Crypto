@@ -26,6 +26,9 @@ func (s *Server) renderResponse(w http.ResponseWriter, status int, data interfac
 }
 
 func (s *Server) renderError(w http.ResponseWriter, r *http.Request, err error) {
+
+	// ErrorResponse represents error response structure
+	// swagger:model ErrorResponse
 	type errorResponse struct {
 		Error string `json:"error"`
 		Code  int    `json:"code"`
@@ -47,6 +50,17 @@ func (s *Server) renderError(w http.ResponseWriter, r *http.Request, err error) 
 	})
 }
 
+// handleGetActualCoins godoc
+// @Summary Get latest coin prices
+// @Description Returns latest prices for requested coins
+// @Tags coins
+// @Accept json
+// @Produce json
+// @Param titles query string true "Comma-separated list of coin titles" Example("BTC,ETH")
+// @Success 200 {array} entities.Coin
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /coins/actual [post]
 func (s *Server) handleGetActualCoins(w http.ResponseWriter, r *http.Request) {
 	titlesParam := r.URL.Query().Get("titles")
 	if titlesParam == "" {
@@ -69,6 +83,18 @@ func (s *Server) handleGetActualCoins(w http.ResponseWriter, r *http.Request) {
 	s.renderResponse(w, http.StatusOK, coins)
 }
 
+// handleGetAggregateCoins godoc
+// @Summary Get aggregated coin data
+// @Description Returns aggregated data (AVG/MAX/MIN) for requested coins
+// @Tags coins
+// @Accept json
+// @Produce json
+// @Param aggFunc path string true "Aggregation function (AVG, MAX, MIN)" Enums(AVG, MAX, MIN)
+// @Param titles query string true "Comma-separated list of coin titles" Example("BTC,ETH")
+// @Success 200 {array} entities.Coin
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /coins/aggregate/{aggFunc} [post]
 func (s *Server) handleGetAggregateCoins(w http.ResponseWriter, r *http.Request) {
 	aggFunc := chi.URLParam(r, "aggFunc")
 

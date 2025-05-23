@@ -1,10 +1,25 @@
+// @title Cryptocurrency API
+// @version 1.0
+// @description API for cryptocurrency data management
+// @termsOfService http://swagger.io/terms/
+
+// @contact.name API Support
+// @contact.email support@cryptoproject.com
+
+// @license.name Apache 2.0
+// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+
+// @host localhost:8080
+// @BasePath /api/v1
 package http
 
 import (
 	"context"
 	"net/http"
 
+	_ "Cryptoproject/docs"
 	"github.com/go-chi/chi/v5"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 type Server struct {
@@ -31,6 +46,9 @@ func NewServer(coinService CoinService, port string) *Server {
 
 func (s *Server) initRoutes() {
 	s.router.Route("/api/v1", func(r chi.Router) {
+		r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL(
+			"doc.json"),
+		))
 		r.Post("/coins/actual", s.handleGetActualCoins)
 		r.Post("/coins/aggregate", s.handleGetAggregateCoins)
 	})

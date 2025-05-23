@@ -6,10 +6,12 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Coin represents cryptocurrency data
+// swagger:model Coin
 type Coin struct {
-	CoinName  string
-	Price     float64
-	CreatedAt time.Time
+	CoinName  string    `json:"coin_name"`
+	Price     float64   `json:"price"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 func NewCoin(coinName string, price float64) (*Coin, error) {
