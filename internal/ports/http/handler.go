@@ -2,14 +2,22 @@ package http
 
 import (
 	"encoding/json"
+	"github.com/go-chi/chi/v5"
 	"net/http"
+	"strings"
 
 	"github.com/pkg/errors"
 
 	"Cryptoproject/internal/entities"
 )
 
-func renderResponse(w http.ResponseWriter, r *http.Request, status int, data interface{}) {
+const (
+	AggFuncAVG = "AVG"
+	AggFuncMAX = "MAX"
+	AggFuncMin = "MIN"
+)
+
+func (s *Server) renderResponse(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(data); err != nil {
@@ -17,7 +25,7 @@ func renderResponse(w http.ResponseWriter, r *http.Request, status int, data int
 	}
 }
 
-func renderError(w http.ResponseWriter, r *http.Request, err error) {
+func (s *Server) renderError(w http.ResponseWriter, r *http.Request, err error) {
 	type errorResponse struct {
 		Error string `json:"error"`
 		Code  int    `json:"code"`
@@ -25,7 +33,7 @@ func renderError(w http.ResponseWriter, r *http.Request, err error) {
 
 	var status int
 	switch {
-	case errors.Is(err, entities.ErrInvalidInput):
+	case errors.Is(err, entities.ErrInvalidParam):
 		status = http.StatusBadRequest
 	case errors.Is(err, entities.ErrNotFound):
 		status = http.StatusNotFound
@@ -33,95 +41,64 @@ func renderError(w http.ResponseWriter, r *http.Request, err error) {
 		status = http.StatusInternalServerError
 	}
 
-	renderResponse(w, r, status, errorResponse{
+	s.renderResponse(w, status, errorResponse{
 		Error: err.Error(),
 		Code:  status,
 	})
 }
 
 func (s *Server) handleGetActualCoins(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Titles []string `json:"titles"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		renderError(w, r, errors.Wrap(entities.ErrInvalidInput, "invalid request body"))
+	titlesParam := r.URL.Query().Get("titles")
+	if titlesParam == "" {
+		s.renderError(w, r, errors.Wrap(entities.ErrInvalidParam, "titles parameter is required"))
 		return
 	}
 
-	if len(req.Titles) == 0 {
-		renderError(w, r, errors.Wrap(entities.ErrInvalidInput, "empty titles list"))
+	titles := strings.Split(titlesParam, ",")
+	if len(titles) == 0 {
+		s.renderError(w, r, errors.Wrap(entities.ErrInvalidParam, "empty titles list"))
 		return
 	}
 
-	coins, err := s.coinService.GetActualCoins(r.Context(), req.Titles)
+	coins, err := s.coinService.GetActualCoins(r.Context(), titles)
 	if err != nil {
-		renderError(w, r, errors.Wrap(err, "failed to get actual coins"))
+		s.renderError(w, r, errors.Wrap(err, "failed to get actual coins"))
 		return
 	}
 
-	renderResponse(w, r, http.StatusOK, coins)
+	s.renderResponse(w, http.StatusOK, coins)
 }
 
 func (s *Server) handleGetAggregateCoins(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Titles  []string `json:"titles"`
-		AggFunc string   `json:"agg_func"`
+	aggFunc := chi.URLParam(r, "aggFunc")
+
+	validAggFuncs := map[string]bool{
+		AggFuncAVG: true,
+		AggFuncMAX: true,
+		AggFuncMin: true,
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		renderError(w, r, errors.Wrap(entities.ErrInvalidInput, "invalid request body"))
+	if !validAggFuncs[aggFunc] {
+		s.renderError(w, r, errors.Wrap(entities.ErrInvalidParam, "invali agg func, use: "+strings.Join([]string{AggFuncAVG, AggFuncMAX, AggFuncMin}, ",")))
 		return
 	}
 
-	if len(req.Titles) == 0 {
-		renderError(w, r, errors.Wrap(entities.ErrInvalidInput, "empty titles list"))
+	titlesParam := r.URL.Query().Get("titles")
+	if titlesParam == "" {
+		s.renderError(w, r, errors.Wrap(entities.ErrInvalidParam, "titles parameter is required"))
 		return
 	}
 
-	switch req.AggFunc {
-	case "AVG", "MAX", "MIN":
-	default:
-		renderError(w, r, errors.Wrap(entities.ErrInvalidInput, "invalid agg func"))
-		return
+	titles := strings.Split(titlesParam, ",")
+	if len(titles) == 0 {
+		s.renderError(w, r, errors.Wrap(entities.ErrInvalidParam, "at last one title requred"))
 	}
 
-	coins, err := s.coinService.GetAggregateCoins(r.Context(), req.Titles, req.AggFunc)
+	coins, err := s.coinService.GetAggregateCoins(r.Context(), titles, titlesParam)
 	if err != nil {
-		renderError(w, r, errors.Wrap(err, "failed to get aggregate data"))
+		s.renderError(w, r, errors.Wrap(err, "failed to get aggregate data"))
 		return
 	}
 
-	renderResponse(w, r, http.StatusOK, coins)
-}
-
-func (s *Server) handleStoreCoins(w http.ResponseWriter, r *http.Request) {
-	var coins []entities.Coin
-
-	if err := json.NewDecoder(r.Body).Decode(&coins); err != nil {
-		renderError(w, r, errors.Wrap(entities.ErrInvalidInput, "invalid request body"))
-		return
-	}
-
-	if len(coins) == 0 {
-		renderError(w, r, errors.Wrap(entities.ErrInvalidInput, "empty coins list"))
-		return
-	}
-
-	if err := s.coinService.StoreCoins(r.Context(), coins); err != nil {
-		renderError(w, r, errors.Wrap(entities.ErrInvalidInput, "failed to store coins"))
-		return
-	}
-
-	w.WriteHeader(http.StatusCreated)
-}
-
-func (s *Server) handleGetCoinsList(w http.ResponseWriter, r *http.Request) {
-	list, err := s.coinService.GetCoinsList(r.Context())
-	if err != nil {
-		renderError(w, r, errors.Wrap(err, "failet to get coins list"))
-		return
-	}
-
-	renderResponse(w, r, http.StatusOK, list)
+	s.renderResponse(w, http.StatusOK, coins)
 }
