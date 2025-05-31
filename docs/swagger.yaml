@@ -1,0 +1,113 @@
+basePath: /api/v1
+definitions:
+  dto.AggregateCoinResponse:
+    properties:
+      coin_name:
+        type: string
+      price:
+        description: AVG, MAX или MIN
+        type: number
+    type: object
+  dto.CoinResponse:
+    properties:
+      coin_name:
+        type: string
+      created_at:
+        type: string
+      price:
+        type: number
+    type: object
+  dto.ErrorResponseDto:
+    properties:
+      code:
+        type: integer
+      error:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: not support
+    name: '@GradDia'
+  description: API for cryptocurrency data management
+  license:
+    name: for free
+    url: for free
+  termsOfService: http://swagger.io/terms/
+  title: Cryptocurrency API
+  version: "1.0"
+paths:
+  /coins/actual:
+    post:
+      consumes:
+      - application/json
+      description: Returns latest prices for requested coins
+      parameters:
+      - description: Comma-separated list of coin titles
+        example: '"BTC,ETH"'
+        in: query
+        name: titles
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.CoinResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponseDto'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponseDto'
+      summary: Get latest coin prices
+      tags:
+      - coins
+  /coins/aggregate/{aggFunc}:
+    post:
+      consumes:
+      - application/json
+      description: Returns aggregated data (AVG/MAX/MIN) for requested coins
+      parameters:
+      - description: Aggregation function (AVG, MAX, MIN)
+        enum:
+        - AVG
+        - MAX
+        - MIN
+        in: path
+        name: aggFunc
+        required: true
+        type: string
+      - description: Comma-separated list of coin titles
+        example: '"BTC,ETH"'
+        in: query
+        name: titles
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.AggregateCoinResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponseDto'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponseDto'
+      summary: Get aggregated coin data
+      tags:
+      - coins
+swagger: "2.0"

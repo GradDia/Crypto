@@ -1,0 +1,168 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "API for cryptocurrency data management",
+        "title": "Cryptocurrency API",
+        "termsOfService": "http://swagger.io/terms/",
+        "contact": {
+            "name": "@GradDia",
+            "email": "not support"
+        },
+        "license": {
+            "name": "for free",
+            "url": "for free"
+        },
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/api/v1",
+    "paths": {
+        "/coins/actual": {
+            "post": {
+                "description": "Returns latest prices for requested coins",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "coins"
+                ],
+                "summary": "Get latest coin prices",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"BTC,ETH\"",
+                        "description": "Comma-separated list of coin titles",
+                        "name": "titles",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dto.CoinResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponseDto"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponseDto"
+                        }
+                    }
+                }
+            }
+        },
+        "/coins/aggregate/{aggFunc}": {
+            "post": {
+                "description": "Returns aggregated data (AVG/MAX/MIN) for requested coins",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "coins"
+                ],
+                "summary": "Get aggregated coin data",
+                "parameters": [
+                    {
+                        "enum": [
+                            "AVG",
+                            "MAX",
+                            "MIN"
+                        ],
+                        "type": "string",
+                        "description": "Aggregation function (AVG, MAX, MIN)",
+                        "name": "aggFunc",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"BTC,ETH\"",
+                        "description": "Comma-separated list of coin titles",
+                        "name": "titles",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dto.AggregateCoinResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponseDto"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponseDto"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "dto.AggregateCoinResponse": {
+            "type": "object",
+            "properties": {
+                "coin_name": {
+                    "type": "string"
+                },
+                "price": {
+                    "description": "AVG, MAX или MIN",
+                    "type": "number"
+                }
+            }
+        },
+        "dto.CoinResponse": {
+            "type": "object",
+            "properties": {
+                "coin_name": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                }
+            }
+        },
+        "dto.ErrorResponseDto": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer"
+                },
+                "error": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

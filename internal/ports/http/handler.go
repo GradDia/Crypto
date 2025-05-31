@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 
 	"Cryptoproject/internal/entities"
+	"Cryptoproject/pkg/dto"
 )
 
 const (
@@ -26,9 +27,6 @@ func (s *Server) renderResponse(w http.ResponseWriter, status int, data interfac
 }
 
 func (s *Server) renderError(w http.ResponseWriter, r *http.Request, err error) {
-
-	// ErrorResponse represents error response structure
-	// swagger:model ErrorResponse
 	type errorResponse struct {
 		Error string `json:"error"`
 		Code  int    `json:"code"`
@@ -57,9 +55,9 @@ func (s *Server) renderError(w http.ResponseWriter, r *http.Request, err error) 
 // @Accept json
 // @Produce json
 // @Param titles query string true "Comma-separated list of coin titles" Example("BTC,ETH")
-// @Success 200 {array} entities.Coin
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Success 200 {array} dto.CoinResponse
+// @Failure 400 {object} dto.ErrorResponseDto
+// @Failure 500 {object} dto.ErrorResponseDto
 // @Router /coins/actual [post]
 func (s *Server) handleGetActualCoins(w http.ResponseWriter, r *http.Request) {
 	titlesParam := r.URL.Query().Get("titles")
@@ -74,10 +72,19 @@ func (s *Server) handleGetActualCoins(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	coins, err := s.coinService.GetActualCoins(r.Context(), titles)
+	coins, err := s.coinService.GetLastRates(r.Context(), titles)
 	if err != nil {
 		s.renderError(w, r, errors.Wrap(err, "failed to get actual coins"))
 		return
+	}
+	//convert coins to response dto
+	response := make([]dto.CoinResponse, 0, len(coins))
+	for _, coin := range coins {
+		response = append(response, dto.CoinResponse{
+			CoinName:  coin.CoinName,
+			Price:     coin.Price,
+			CreatedAt: coin.CreatedAt,
+		})
 	}
 
 	s.renderResponse(w, http.StatusOK, coins)
@@ -91,21 +98,21 @@ func (s *Server) handleGetActualCoins(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Param aggFunc path string true "Aggregation function (AVG, MAX, MIN)" Enums(AVG, MAX, MIN)
 // @Param titles query string true "Comma-separated list of coin titles" Example("BTC,ETH")
-// @Success 200 {array} entities.Coin
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Success 200 {array} dto.AggregateCoinResponse
+// @Failure 400 {object} dto.ErrorResponseDto
+// @Failure 500 {object} dto.ErrorResponseDto
 // @Router /coins/aggregate/{aggFunc} [post]
 func (s *Server) handleGetAggregateCoins(w http.ResponseWriter, r *http.Request) {
 	aggFunc := chi.URLParam(r, "aggFunc")
 
-	validAggFuncs := map[string]bool{
-		AggFuncAVG: true,
-		AggFuncMAX: true,
-		AggFuncMin: true,
+	validAggFuncs := map[string]struct{}{
+		AggFuncAVG: {},
+		AggFuncMAX: {},
+		AggFuncMin: {},
 	}
 
-	if !validAggFuncs[aggFunc] {
-		s.renderError(w, r, errors.Wrap(entities.ErrInvalidParam, "invali agg func, use: "+strings.Join([]string{AggFuncAVG, AggFuncMAX, AggFuncMin}, ",")))
+	if _, ok := validAggFuncs[aggFunc]; !ok {
+		s.renderError(w, r, errors.Wrapf(entities.ErrInvalidParam, "invalid agg func: %s", aggFunc))
 		return
 	}
 
@@ -117,14 +124,22 @@ func (s *Server) handleGetAggregateCoins(w http.ResponseWriter, r *http.Request)
 
 	titles := strings.Split(titlesParam, ",")
 	if len(titles) == 0 {
-		s.renderError(w, r, errors.Wrap(entities.ErrInvalidParam, "at last one title requred"))
+		s.renderError(w, r, errors.Wrap(entities.ErrInvalidParam, "at last one title required"))
 	}
 
-	coins, err := s.coinService.GetAggregateCoins(r.Context(), titles, titlesParam)
+	aggregateData, err := s.coinService.GetRatesWithAgg(r.Context(), titles, aggFunc)
 	if err != nil {
 		s.renderError(w, r, errors.Wrap(err, "failed to get aggregate data"))
 		return
 	}
 
-	s.renderResponse(w, http.StatusOK, coins)
+	response := make([]dto.AggregateCoinResponse, 0, len(aggregateData))
+	for _, data := range aggregateData {
+		response = append(response, dto.AggregateCoinResponse{
+			CoinName: data.CoinName,
+			Price:    data.Price,
+		})
+	}
+
+	s.renderResponse(w, http.StatusOK, response)
 }

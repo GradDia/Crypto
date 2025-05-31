@@ -3,11 +3,11 @@
 // @description API for cryptocurrency data management
 // @termsOfService http://swagger.io/terms/
 
-// @contact.name API Support
-// @contact.email support@cryptoproject.com
+// @contact.name @GradDia
+// @contact.email not support
 
-// @license.name Apache 2.0
-// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+// @license.name for free
+// @license.url for free
 
 // @host localhost:8080
 // @BasePath /api/v1
@@ -17,7 +17,6 @@ import (
 	"context"
 	"net/http"
 
-	_ "Cryptoproject/docs"
 	"github.com/go-chi/chi/v5"
 	httpSwagger "github.com/swaggo/http-swagger"
 )

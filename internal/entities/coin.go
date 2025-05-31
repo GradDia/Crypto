@@ -6,8 +6,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Coin represents cryptocurrency data
-// swagger:model Coin
 type Coin struct {
 	CoinName  string    `json:"coin_name"`
 	Price     float64   `json:"price"`
