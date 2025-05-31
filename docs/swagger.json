@@ -1,21 +1,8 @@
 {
     "swagger": "2.0",
     "info": {
-        "description": "API for cryptocurrency data management",
-        "title": "Cryptocurrency API",
-        "termsOfService": "http://swagger.io/terms/",
-        "contact": {
-            "name": "@GradDia",
-            "email": "not support"
-        },
-        "license": {
-            "name": "for free",
-            "url": "for free"
-        },
-        "version": "1.0"
+        "contact": {}
     },
-    "host": "localhost:8080",
-    "basePath": "/api/v1",
     "paths": {
         "/coins/actual": {
             "post": {

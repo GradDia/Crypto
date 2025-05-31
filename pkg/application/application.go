@@ -20,7 +20,7 @@ func NewApp() (*App, error) {
 		return nil, err
 	}
 
-	cryptoProvider, err := cryptocompare.NewClient("your_cryptocompare_api_key")
+	cryptoProvider, err := cryptocompare.NewClient("d994a06fb570c9237da009fcb028d0094662333e9f6d7e231707198442174ac5")
 	if err != nil {
 		return nil, err
 	}
