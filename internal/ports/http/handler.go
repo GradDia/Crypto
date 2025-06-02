@@ -58,7 +58,7 @@ func (s *Server) renderError(w http.ResponseWriter, r *http.Request, err error) 
 // @Success 200 {array} dto.CoinResponse
 // @Failure 400 {object} dto.ErrorResponseDto
 // @Failure 500 {object} dto.ErrorResponseDto
-// @Router /coins/actual [post]
+// @Router /api/v1/coins/actual [post]
 func (s *Server) handleGetActualCoins(w http.ResponseWriter, r *http.Request) {
 	titlesParam := r.URL.Query().Get("titles")
 	if titlesParam == "" {
@@ -101,7 +101,7 @@ func (s *Server) handleGetActualCoins(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {array} dto.AggregateCoinResponse
 // @Failure 400 {object} dto.ErrorResponseDto
 // @Failure 500 {object} dto.ErrorResponseDto
-// @Router /coins/aggregate/{aggFunc} [post]
+// @Router /api/v1/coins/aggregate/{aggFunc} [post]
 func (s *Server) handleGetAggregateCoins(w http.ResponseWriter, r *http.Request) {
 	aggFunc := chi.URLParam(r, "aggFunc")
 

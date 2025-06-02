@@ -7,7 +7,7 @@ import "time"
 type CoinResponse struct {
 	CoinName  string    `json:"coin_name"`
 	Price     float64   `json:"price"`
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt time.Time `json:"created_at"` // omit epty
 }
 
 // AggregateCoinResponse DTO для агрегированных данных

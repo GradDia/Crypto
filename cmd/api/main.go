@@ -8,14 +8,13 @@ import (
 	"syscall"
 	"time"
 
+	_ "Cryptoproject/docs"
+
 	"Cryptoproject/pkg/application"
 )
 
 func main() {
-	app, err := application.NewApp()
-	if err != nil {
-		log.Fatalf("Failed to initialize app: %v", err)
-	}
+	app := application.NewApp()
 
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)

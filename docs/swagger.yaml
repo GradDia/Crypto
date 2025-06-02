@@ -26,7 +26,7 @@ definitions:
 info:
   contact: {}
 paths:
-  /coins/actual:
+  /api/v1/coins/actual:
     post:
       consumes:
       - application/json
@@ -58,7 +58,7 @@ paths:
       summary: Get latest coin prices
       tags:
       - coins
-  /coins/aggregate/{aggFunc}:
+  /api/v1/coins/aggregate/{aggFunc}:
     post:
       consumes:
       - application/json

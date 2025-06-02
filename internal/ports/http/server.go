@@ -16,13 +16,13 @@
 package http
 
 import (
-	_ "Cryptoproject/docs"
-
 	"context"
-	httpSwagger "github.com/swaggo/http-swagger"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	httpSwagger "github.com/swaggo/http-swagger"
+
+	_ "Cryptoproject/docs"
 )
 
 type Server struct {
@@ -48,13 +48,13 @@ func NewServer(coinService CoinService, port string) *Server {
 }
 
 func (s *Server) initRoutes() {
-	s.router.Get("/swagger/*", httpSwagger.Handler(
-		httpSwagger.URL("/swagger/doc.json"), // Указываем явный путь
+	s.router.Get("/api/v1/swagger/*", httpSwagger.Handler(
+		httpSwagger.URL("/api/v1/swagger/doc.json"),
 	))
 
 	s.router.Route("/api/v1", func(r chi.Router) {
 		r.Post("/coins/actual", s.handleGetActualCoins)
-		r.Post("/coins/aggregate", s.handleGetAggregateCoins)
+		r.Post("/coins/aggregate/{aggFunc}", s.handleGetAggregateCoins)
 	})
 
 }

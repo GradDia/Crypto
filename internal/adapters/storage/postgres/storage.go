@@ -1,13 +1,13 @@
 package postgres
 
 import (
-	"context"
-
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pkg/errors"
-
 	"Cryptoproject/internal/cases"
 	"Cryptoproject/internal/entities"
+	"context"
+	"fmt"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pkg/errors"
+	"strings"
 )
 
 var (
@@ -77,18 +77,21 @@ func (s *Storage) GetActualCoins(ctx context.Context, titles []string) ([]entiti
 		return []entities.Coin{}, nil
 	}
 
-	params := make([]interface{}, 0, len(titles))
-
-	for _, title := range titles {
-		params = append(params, title)
+	placeholders := make([]string, len(titles))
+	params := make([]interface{}, len(titles))
+	for i, title := range titles {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		params[i] = title
 	}
 
-	rows, err := s.db.Query(ctx, `
-        SELECT DISTINCT ON (coin_name) coin_name, price, created_at
-        FROM coins
-        WHERE coin_name = ANY($1)
-        ORDER BY coin_name, created_at DESC
-		`, params...)
+	query := fmt.Sprintf(`
+    SELECT DISTINCT ON (coin_name) coin_name, price, created_at
+    FROM coins
+    WHERE coin_name IN(%s)
+    ORDER BY coin_name, created_at DESC
+`, strings.Join(placeholders, ","))
+
+	rows, err := s.db.Query(ctx, query, params...)
 
 	if err != nil {
 		return nil, errors.Wrap(entities.ErrInternal, "failed to query coins list")
@@ -109,34 +112,34 @@ func (s *Storage) GetActualCoins(ctx context.Context, titles []string) ([]entiti
 	return coins, nil
 }
 
-func (s *Storage) GetAggregateCoins(ctx context.Context, titles []string, aggFuncTitle string) ([]entities.Coin, error) {
+func (s *Storage) GetAggregateCoins(ctx context.Context, titles []string, aggFunc string) ([]entities.Coin, error) {
 
 	if len(titles) == 0 {
 		return []entities.Coin{}, nil
 	}
 
-	var query string
-	switch aggFuncTitle {
+	query := `
+        SELECT 
+            coin_name, 
+            %s(price) as price
+        FROM coins
+        WHERE coin_name = ANY($1)
+        GROUP BY coin_name
+    `
+
+	var aggQuery string
+	switch strings.ToUpper(aggFunc) {
 	case "AVG":
-		query = "AVG(price)"
+		aggQuery = fmt.Sprintf(query, "AVG")
 	case "MAX":
-		query = "MAX(price)"
+		aggQuery = fmt.Sprintf(query, "MAX")
 	case "MIN":
-		query = "MIN(price)"
+		aggQuery = fmt.Sprintf(query, "MIN")
 	default:
 		return nil, errors.Wrap(entities.ErrInternal, "unsupported aggregate function: %s (allowed: AVG, MAX, MIN)")
 	}
 
-	rows, err := s.db.Query(ctx, `
-        SELECT 
-            coin_name, 
-            `+query+` as price,
-            MAX(created_at) as created_at
-        FROM coins
-        WHERE coin_name = ANY($1)
-        GROUP BY coin_name
-        ORDER BY coin_name
-    `, titles)
+	rows, err := s.db.Query(ctx, aggQuery, titles)
 
 	if err != nil {
 		return nil, errors.Wrapf(entities.ErrInternal, "aggregate query failed, err: %v", err)

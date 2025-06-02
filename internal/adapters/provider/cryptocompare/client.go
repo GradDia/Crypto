@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/pkg/errors"
+	"io"
 	"net/http"
 	"strings"
 
@@ -83,8 +84,14 @@ func (c *Client) GetActualRates(ctx context.Context, titles []string) ([]entitie
 	}
 
 	var result map[string]map[string]float64
-	if err = json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, errors.Wrap(err, "failed to decode response")
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, errors.Wrapf(entities.ErrInternal, "readAll resp Body: %v", err)
+	}
+
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		return nil, errors.Wrapf(entities.ErrInternal, "unmarshal body error :%v", err)
 	}
 
 	if len(result) == 0 {

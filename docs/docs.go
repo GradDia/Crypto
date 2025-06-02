@@ -15,7 +15,7 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/coins/actual": {
+        "/api/v1/coins/actual": {
             "post": {
                 "description": "Returns latest prices for requested coins",
                 "consumes": [
@@ -63,7 +63,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/coins/aggregate/{aggFunc}": {
+        "/api/v1/coins/aggregate/{aggFunc}": {
             "post": {
                 "description": "Returns aggregated data (AVG/MAX/MIN) for requested coins",
                 "consumes": [

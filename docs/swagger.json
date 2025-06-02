@@ -4,7 +4,7 @@
         "contact": {}
     },
     "paths": {
-        "/coins/actual": {
+        "/api/v1/coins/actual": {
             "post": {
                 "description": "Returns latest prices for requested coins",
                 "consumes": [
@@ -33,26 +33,26 @@
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/dto.CoinResponse"
+                                "$ref": "#/definitions/Cryptoproject_pkg_dto.CoinResponse"
                             }
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponseDto"
+                            "$ref": "#/definitions/Cryptoproject_pkg_dto.ErrorResponseDto"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponseDto"
+                            "$ref": "#/definitions/Cryptoproject_pkg_dto.ErrorResponseDto"
                         }
                     }
                 }
             }
         },
-        "/coins/aggregate/{aggFunc}": {
+        "/api/v1/coins/aggregate/{aggFunc}": {
             "post": {
                 "description": "Returns aggregated data (AVG/MAX/MIN) for requested coins",
                 "consumes": [
@@ -93,20 +93,20 @@
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/dto.AggregateCoinResponse"
+                                "$ref": "#/definitions/Cryptoproject_pkg_dto.AggregateCoinResponse"
                             }
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponseDto"
+                            "$ref": "#/definitions/Cryptoproject_pkg_dto.ErrorResponseDto"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponseDto"
+                            "$ref": "#/definitions/Cryptoproject_pkg_dto.ErrorResponseDto"
                         }
                     }
                 }
@@ -114,7 +114,7 @@
         }
     },
     "definitions": {
-        "dto.AggregateCoinResponse": {
+        "Cryptoproject_pkg_dto.AggregateCoinResponse": {
             "type": "object",
             "properties": {
                 "coin_name": {
@@ -126,7 +126,7 @@
                 }
             }
         },
-        "dto.CoinResponse": {
+        "Cryptoproject_pkg_dto.CoinResponse": {
             "type": "object",
             "properties": {
                 "coin_name": {
@@ -140,7 +140,7 @@
                 }
             }
         },
-        "dto.ErrorResponseDto": {
+        "Cryptoproject_pkg_dto.ErrorResponseDto": {
             "type": "object",
             "properties": {
                 "code": {
