@@ -33,21 +33,18 @@ func (s *Service) GetLastRates(ctx context.Context, titles []string) ([]entities
 		return nil, errors.Wrap(entities.ErrInvalidParam, "titles list is empty")
 	}
 
-	// 1. Всегда получаем свежие данные от провайдера
 	freshCoins, err := s.cryptoProvider.GetActualRates(ctx, titles)
 	if err != nil {
-		return nil, errors.Wrap(entities.ErrInternal, "failed to get fresh rates")
+		return nil, errors.Wrap(err, "failed to get fresh rates")
 	}
 
-	// 2. Сохраняем новые данные в БД
 	if err = s.storage.Store(ctx, freshCoins); err != nil {
-		return nil, errors.Wrap(entities.ErrInternal, "failed to store fresh coins")
+		return nil, errors.Wrap(err, "failed to store fresh coins")
 	}
 
-	// 3. Возвращаем последние данные из БД (те которые только что сохранили)
 	coins, err := s.storage.GetActualCoins(ctx, titles)
 	if err != nil {
-		return nil, errors.Wrap(entities.ErrInternal, "failed to get actual coins from storage")
+		return nil, errors.Wrap(err, "failed to get actual coins from storage")
 	}
 
 	return coins, nil

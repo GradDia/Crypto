@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/robfig/cron/v3"
+	cronJob "github.com/robfig/cron/v3"
 
 	"Cryptoproject/internal/adapters/provider/cryptocompare"
 	"Cryptoproject/internal/adapters/storage/postgres"
@@ -15,7 +15,7 @@ import (
 
 type App struct {
 	httpServer *http.Server
-	cron       *cron.Cron
+	cron       *cronJob.Cron
 	service    *cases.Service
 }
 
@@ -40,7 +40,7 @@ func NewApp() *App {
 	app := &App{
 		httpServer: httpServer,
 		service:    service,
-		cron:       cron.New(),
+		cron:       cronJob.New(),
 	}
 
 	app.setupCron()
