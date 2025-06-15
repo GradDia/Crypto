@@ -2,7 +2,8 @@ package application
 
 import (
 	"context"
-	"log"
+	"log/slog"
+	"os"
 	"time"
 
 	cronJob "github.com/robfig/cron/v3"
@@ -17,84 +18,144 @@ type App struct {
 	httpServer *http.Server
 	cron       *cronJob.Cron
 	service    *cases.Service
+	logger     *slog.Logger
 }
 
 func NewApp() *App {
-	storage, err := postgres.NewStorage("postgres://user:password@localhost:5432/coins?sslmode=disable")
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
+	slog.SetDefault(logger)
+
+	logger.Info("Initializing application")
+
+	// Передаем логгер в NewStorage
+	storage, err := postgres.NewStorage("postgres://user:password@localhost:5432/coins?sslmode=disable", logger)
 	if err != nil {
+		logger.Error("Failed to initialize storage", slog.String("error", err.Error()))
 		panic(err)
 	}
 
-	cryptoProvider, err := cryptocompare.NewClient("your_api_key")
+	// Передаем логгер в NewClient
+	cryptoProvider, err := cryptocompare.NewClient("your_api_key", logger)
 	if err != nil {
+		logger.Error("Failed to initialize crypto provider", slog.String("error", err.Error()))
 		panic(err)
 	}
 
-	service, err := cases.NewService(storage, cryptoProvider)
+	// Передаем логгер в NewService
+	service, err := cases.NewService(storage, cryptoProvider, logger)
 	if err != nil {
+		logger.Error("Failed to initialize service", slog.String("error", err.Error()))
 		panic(err)
 	}
 
-	httpServer := http.NewServer(service, "8080")
+	// Передаем логгер в NewServer
+	httpServer := http.NewServer(service, "8080", logger)
 
 	app := &App{
 		httpServer: httpServer,
 		service:    service,
-		cron:       cronJob.New(),
+		cron: cronJob.New(cronJob.WithLogger(
+			cronJob.VerbosePrintfLogger(slog.NewLogLogger(logger.Handler(), slog.LevelDebug)),
+		)),
+		logger: logger,
 	}
 
 	app.setupCron()
+	logger.Info("Application initialized successfully")
 	return app
 }
 
 func (a *App) setupCron() {
-	_, err := a.cron.AddFunc("*/10 * * * *", a.updateCoinData)
+	const jobName = "coin_data_update"
+
+	_, err := a.cron.AddFunc("*/10 * * * *", func() {
+		ctx := context.Background()
+		startTime := time.Now()
+		logger := a.logger.With(
+			slog.String("job", jobName),
+			slog.Time("start_time", startTime),
+		)
+
+		logger.Info("Starting cron job execution")
+
+		if err := a.service.ActualizeRates(ctx); err != nil {
+			logger.Error("Cron job failed",
+				slog.String("error", err.Error()),
+				slog.Duration("duration", time.Since(startTime)))
+			return
+		}
+
+		logger.Info("Cron job completed successfully",
+			slog.Duration("duration", time.Since(startTime)))
+	})
+
 	if err != nil {
-		log.Fatalf("Failed to add cron job: %v", err)
+		a.logger.Error("Failed to schedule cron job",
+			slog.String("job", jobName),
+			slog.String("error", err.Error()))
+		panic(err)
 	}
 
 	go func() {
-		log.Println("Starting cron scheduler...")
+		a.logger.Info("Starting cron scheduler")
 		a.cron.Start()
 	}()
 }
 
 func (a *App) updateCoinData() {
+	ctx := context.Background()
 	startTime := time.Now()
-	log.Println("[Cron] Starting coins data update...")
+	logger := a.logger.With(
+		slog.String("op", "updateCoinData"),
+		slog.Time("start_time", startTime),
+	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	logger.Info("Starting coins data update")
 
 	if err := a.service.ActualizeRates(ctx); err != nil {
-		log.Printf("[Cron] Update failed: %v", err)
+		logger.Error("Update failed",
+			slog.String("error", err.Error()),
+			slog.Duration("duration", time.Since(startTime)))
 		return
 	}
 
-	log.Printf("[Cron] Update completed in %v", time.Since(startTime))
+	logger.Info("Update completed",
+		slog.Duration("duration", time.Since(startTime)))
 }
 
 func (a *App) Run() error {
-	log.Println("Starting server on :8080")
+	a.logger.Info("Starting HTTP server", slog.String("port", "8080"))
 	return a.httpServer.Start()
 }
 
 func (a *App) Shutdown(ctx context.Context) error {
-	log.Println("Shutting down application...")
+	a.logger.Info("Shutting down application")
 
+	// Остановка cron
 	if a.cron != nil {
-		log.Println("Stopping cron scheduler...")
+		a.logger.Info("Stopping cron scheduler")
 		cronCtx := a.cron.Stop()
-		<-cronCtx.Done()
-	}
-
-	if a.httpServer != nil {
-		log.Println("Stopping HTTP server...")
-		if err := a.httpServer.Stop(ctx); err != nil {
-			return err
+		select {
+		case <-cronCtx.Done():
+			a.logger.Info("Cron scheduler stopped gracefully")
+		case <-ctx.Done():
+			a.logger.Warn("Forced cron scheduler shutdown")
 		}
 	}
 
-	log.Println("Application shutdown completed")
+	// Остановка HTTP сервера
+	if a.httpServer != nil {
+		a.logger.Info("Stopping HTTP server")
+		if err := a.httpServer.Stop(ctx); err != nil {
+			a.logger.Error("Failed to stop HTTP server",
+				slog.String("error", err.Error()))
+			return err
+		}
+		a.logger.Info("HTTP server stopped")
+	}
+
+	a.logger.Info("Application shutdown completed")
 	return nil
 }
