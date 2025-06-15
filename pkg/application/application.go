@@ -29,8 +29,7 @@ func NewApp() *App {
 
 	logger.Info("Initializing application")
 
-	// Передаем логгер в NewStorage
-	storage, err := postgres.NewStorage("postgres://user:password@localhost:5432/coins?sslmode=disable", logger)
+	storage, err := postgres.NewStorage(os.Getenv("PG_URL"), logger)
 	if err != nil {
 		logger.Error("Failed to initialize storage", slog.String("error", err.Error()))
 		panic(err)
@@ -70,7 +69,7 @@ func NewApp() *App {
 func (a *App) setupCron() {
 	const jobName = "coin_data_update"
 
-	_, err := a.cron.AddFunc("*/10 * * * *", func() {
+	_, err := a.cron.AddFunc("*/1 * * * *", func() {
 		ctx := context.Background()
 		startTime := time.Now()
 		logger := a.logger.With(

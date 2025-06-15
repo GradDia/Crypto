@@ -11,10 +11,40 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U user -d coins" ]
+      test: ["CMD-SHELL", "pg_isready -U user -d coins"]
       interval: 5s
       timeout: 5s
       retries: 5
     volumes:
-      - ./pkg/migrations/postgres:/docker-entrypoint-initdb.d
+      - pg_data:/var/lib/postgresql/data
+      - ./pkg/migrations/postgres/up:/docker-entrypoint-initdb.d  # Только up-миграции
     restart: always
+
+  app:
+    build: .
+    environment:
+      PG_URL: "postgres://user:password@postgres:5432/coins?sslmode=disable"
+      CRYPTO_API_KEY: "your_api_key"
+      HTTP_PORT: "8080"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./pkg/migrations/postgres:/app/migrations  # Все миграции
+    command: >
+      sh -c "
+      echo 'Waiting for PostgreSQL...';
+      until pg_isready -h postgres -U user -d coins; do sleep 1; done;
+      echo 'Applying migrations...';
+      for migration in /app/migrations/up/0001_*.sql /app/migrations/up/0002_*.sql /app/migrations/up/0003_*.sql; do
+        echo \"Applying $$migration\";
+        psql postgres://user:password@postgres:5432/coins?sslmode=disable -f $$migration || exit 1;
+      done;
+      echo 'Starting application...';
+      /app/cryptoapp
+      "
+
+volumes:
+  pg_data:

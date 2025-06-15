@@ -14,10 +14,13 @@ import (
 )
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	app := application.NewApp()
 
-	done := make(chan os.Signal, 1)
-	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
 		if err := app.Run(); err != nil {
@@ -25,17 +28,13 @@ func main() {
 		}
 	}()
 
-	log.Println("Server started on :8080")
+	<-sigChan
+	log.Println("Shutting down...")
 
-	<-done
-	log.Println("Server is shutting down...")
+	shutdownCtx, shutdownCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer shutdownCancel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := app.Shutdown(ctx); err != nil {
-		log.Fatalf("Shutdown failed: %v", err)
+	if err := app.Shutdown(shutdownCtx); err != nil {
+		log.Printf("Shutdown error: %v", err)
 	}
-
-	log.Println("Server Stopped")
 }

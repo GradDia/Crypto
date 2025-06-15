@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"strings"
 	"time"
 
@@ -25,41 +26,83 @@ type Storage struct {
 
 func NewStorage(connectionString string, logger *slog.Logger) (*Storage, error) {
 	const op = "postgres.NewStorage"
+	const maxRetries = 5
+	const retryDelay = 2 * time.Second
+
 	if logger == nil {
 		logger = slog.Default()
 	}
-	logger = logger.With(slog.String("component", "postgres-storage"))
+	logger = logger.With(
+		slog.String("component", "postgres-storage"),
+		slog.String("op", op),
+	)
 
-	logger.Debug("Initializing PostgreSQL storage")
+	logger.Debug("Initializing PostgreSQL storage",
+		slog.String("connection_string", maskPassword(connectionString))) // Маскируем пароль в логах
 
 	if connectionString == "" {
 		err := errors.Wrap(entities.ErrInvalidParam, "missing connection string")
-		logger.Error("Invalid parameter", slog.String("error", err.Error()))
+		logger.Error("Invalid parameter")
 		return nil, err
 	}
 
+	var pool *pgxpool.Pool
+	var err error
 	startTime := time.Now()
-	pool, err := pgxpool.New(context.Background(), connectionString)
-	if err != nil {
-		logger.Error("Connection pool creation failed",
-			slog.String("error", err.Error()),
-			slog.Duration("duration", time.Since(startTime)))
-		return nil, errors.Wrap(err, "failed to create connection pool")
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		logger.Info("Connecting to database",
+			slog.Int("attempt", attempt),
+			slog.String("host", extractHost(connectionString)))
+
+		pool, err = pgxpool.New(context.Background(), connectionString)
+		if err == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			if err = pool.Ping(ctx); err == nil {
+				logger.Info("Database connection established",
+					slog.Duration("duration", time.Since(startTime)))
+				return &Storage{db: pool, logger: logger}, nil
+			}
+			pool.Close()
+		}
+
+		if attempt < maxRetries {
+			delay := time.Duration(math.Pow(2, float64(attempt))) * time.Second
+			logger.Warn("Connection failed, retrying",
+				slog.String("error", err.Error()),
+				slog.Duration("delay", delay))
+
+			time.Sleep(delay)
+			continue
+		}
 	}
 
-	// Проверка соединения
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := pool.Ping(ctx); err != nil {
-		logger.Error("Database ping failed",
-			slog.String("error", err.Error()))
-		return nil, errors.Wrap(err, "database ping failed")
+	logger.Error("Failed to connect after all retries",
+		slog.String("error", err.Error()),
+		slog.Duration("total_duration", time.Since(startTime)))
+	return nil, errors.Wrap(err, "failed to connect after retries")
+}
+
+func maskPassword(connStr string) string {
+	if strings.Contains(connStr, "@") {
+		parts := strings.Split(connStr, "@")
+		if len(parts) > 0 {
+			return parts[0] + "@*****"
+		}
 	}
+	return connStr
+}
 
-	logger.Info("Storage initialized successfully",
-		slog.Duration("duration", time.Since(startTime)))
-
-	return &Storage{db: pool, logger: logger}, nil
+func extractHost(connStr string) string {
+	if strings.Contains(connStr, "@") {
+		parts := strings.Split(connStr, "@")
+		if len(parts) > 1 {
+			return parts[1]
+		}
+	}
+	return connStr
 }
 
 func (s *Storage) Store(ctx context.Context, coins []entities.Coin) error {
@@ -68,36 +111,40 @@ func (s *Storage) Store(ctx context.Context, coins []entities.Coin) error {
 		slog.String("op", op),
 		slog.Int("coins_count", len(coins)),
 	)
-	startTime := time.Now()
 
-	if len(coins) == 0 {
-		logger.Debug("Empty coins list provided")
-		return nil
-	}
-
-	names := make([]string, 0, len(coins))
-	prices := make([]float64, 0, len(coins))
-	for _, coin := range coins {
-		names = append(names, coin.CoinName)
-		prices = append(prices, coin.Price)
-	}
-
-	logger.Debug("Executing batch insert")
+	// Простая вставка без проверки уникальности
 	_, err := s.db.Exec(ctx, `
-		INSERT INTO coins (coin_name, price)
-		SELECT unnest($1::text[]), unnest($2::decimal[])
-	`, names, prices)
+        INSERT INTO coins (coin_name, price, created_at)
+        SELECT unnest($1::text[]), unnest($2::decimal[]), now()
+    `,
+		getCoinNames(coins),  // []string названий монет
+		getCoinPrices(coins), // []float64 цен
+	)
 
 	if err != nil {
-		logger.Error("Insert operation failed",
-			slog.String("error", err.Error()),
-			slog.Duration("duration", time.Since(startTime)))
-		return errors.Wrap(err, "failed to store coins")
+		logger.Error("Insert failed", slog.String("error", err.Error()))
+		return errors.Wrap(err, "failed to insert coins")
 	}
 
-	logger.Info("Coins stored successfully",
-		slog.Duration("duration", time.Since(startTime)))
+	logger.Info("Coins stored successfully")
 	return nil
+}
+
+// Вспомогательные функции
+func getCoinNames(coins []entities.Coin) []string {
+	names := make([]string, len(coins))
+	for i, c := range coins {
+		names[i] = c.CoinName
+	}
+	return names
+}
+
+func getCoinPrices(coins []entities.Coin) []float64 {
+	prices := make([]float64, len(coins))
+	for i, c := range coins {
+		prices[i] = c.Price
+	}
+	return prices
 }
 
 func (s *Storage) GetCoinsList(ctx context.Context) ([]string, error) {
